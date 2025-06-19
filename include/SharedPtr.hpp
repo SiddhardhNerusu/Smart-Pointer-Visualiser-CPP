@@ -2,57 +2,69 @@
 #define SHARED_PTR_HPP
 
 #include <iostream>
-#include <atomic>
+#include "../utils/RefCounter.hpp" 
+
+
+template <typename T>
+class WeakPtr;
 
 template<typename T>
 class SharedPtr {
-private:
+public:
     T* ptr;
-    std::atomic<int>* refCount;
+    RefCounter* counter;
 
+private:
     void release() {
-        if (refCount && --(*refCount) == 0) {
-            std::cout << "[DEALLOC] Deleting object and ref counter\n";
+        if (counter && counter->decrement() == 0) {
+            std::cout << "[DEALLOC] Object deleted (count=0)\n";
             delete ptr;
-            delete refCount;
+            delete counter;
         }
     }
 
 public:
-    // Constructor
+
     explicit SharedPtr(T* rawPtr = nullptr)
-        : ptr(rawPtr), refCount(new std::atomic<int>(1)) {
-        std::cout << "[CREATE] SharedPtr created. Ref count = " << *refCount << "\n";
+        : ptr(rawPtr), counter(new RefCounter()) {
+        std::cout << "[SharedPtr] Created (count = " << counter->get() << ")\n";
     }
 
-    // Copy Constructor
+
+    SharedPtr(const WeakPtr<T>& weak)
+        : ptr(weak.ptr), counter(weak.counter) {
+        if (counter) counter->increment();
+        std::cout << "[SharedPtr] Created from WeakPtr (count = " << counter->get() << ")\n";
+    }
+
+
     SharedPtr(const SharedPtr& other)
-        : ptr(other.ptr), refCount(other.refCount) {
-        ++(*refCount);
-        std::cout << "[COPY] SharedPtr copied. Ref count = " << *refCount << "\n";
+        : ptr(other.ptr), counter(other.counter) {
+        if (counter) counter->increment();
+        std::cout << "[SharedPtr] Copied (count = " << counter->get() << ")\n";
     }
 
-    // Move Constructor
+
     SharedPtr(SharedPtr&& other) noexcept
-        : ptr(other.ptr), refCount(other.refCount) {
+        : ptr(other.ptr), counter(other.counter) {
         other.ptr = nullptr;
-        other.refCount = nullptr;
-        std::cout << "[MOVE] SharedPtr moved.\n";
+        other.counter = nullptr;
+        std::cout << "[SharedPtr] Moved\n";
     }
 
-    // Destructor
+
     ~SharedPtr() {
         release();
     }
 
-    // Assignment Operator
+
     SharedPtr& operator=(const SharedPtr& other) {
         if (this != &other) {
             release();
             ptr = other.ptr;
-            refCount = other.refCount;
-            ++(*refCount);
-            std::cout << "[ASSIGN] SharedPtr assigned. Ref count = " << *refCount << "\n";
+            counter = other.counter;
+            if (counter) counter->increment();
+            std::cout << "[SharedPtr] Assigned (count = " << counter->get() << ")\n";
         }
         return *this;
     }
@@ -62,24 +74,20 @@ public:
         if (this != &other) {
             release();
             ptr = other.ptr;
-            refCount = other.refCount;
+            counter = other.counter;
             other.ptr = nullptr;
-            other.refCount = nullptr;
-            std::cout << "[MOVE ASSIGN] SharedPtr move-assigned.\n";
+            other.counter = nullptr;
+            std::cout << "[SharedPtr] Move assigned\n";
         }
         return *this;
     }
 
-    T& operator*() const {
-        return *ptr;
-    }
-
-    T* operator->() const {
-        return ptr;
-    }
+  
+    T& operator*() const { return *ptr; }
+    T* operator->() const { return ptr; }
 
     int use_count() const {
-        return refCount ? *refCount : 0;
+        return counter ? counter->get() : 0;
     }
 
     bool unique() const {
