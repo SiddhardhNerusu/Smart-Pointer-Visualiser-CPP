@@ -1,28 +1,38 @@
-#include "../include/UniquePtr.hpp"
+#include <iostream>
+#include "../include/SharedPtr.hpp"
 
-class MyObject {
+class Object {
+private:
+    std::string name;
+
 public:
-    MyObject() { std::cout << "[MyObject] Constructor\n"; }
-    ~MyObject() { std::cout << "[MyObject] Destructor\n"; }
+    explicit Object(const std::string& n) : name(n) {
+        std::cout << "[CREATE] Object " << name << " created.\n";
+    }
+
+    ~Object() {
+        std::cout << "[DESTROY] Object " << name << " destroyed.\n";
+    }
 
     void greet() const {
-        std::cout << "Hello from MyObject!\n";
+        std::cout << "Hello from " << name << "!\n";
     }
 };
 
 int main() {
+    std::cout << "===== Start SharedPtr Test =====\n";
+
+    SharedPtr<Object> ptr1(new Object("Alpha"));
     {
-        UniquePtr<MyObject> ptr1(new MyObject());
-        ptr1->greet();
+        SharedPtr<Object> ptr2 = ptr1;
+        SharedPtr<Object> ptr3 = ptr2;
 
-        UniquePtr<MyObject> ptr2 = std::move(ptr1);  // move it
-        if (!ptr1.isValid()) std::cout << "ptr1 is now empty.\n";
-
-        ptr2.reset(new MyObject());  // reset
-        MyObject* raw = ptr2.release();  // release ownership
-
-        delete raw;  // manual cleanup
+        std::cout << "Use count inside scope: " << ptr1.use_count() << "\n";
+        ptr3->greet();
     }
 
+    std::cout << "Use count after scope: " << ptr1.use_count() << "\n";
+
+    std::cout << "===== End SharedPtr Test =====\n";
     return 0;
 }
